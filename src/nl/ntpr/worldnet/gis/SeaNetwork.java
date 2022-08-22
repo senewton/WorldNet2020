@@ -5,6 +5,7 @@ import nl.panteia.utils.io.csv.CSVReader;
 import nl.panteia.utils.io.mif.MapInfoInterchangeReader;
 import nl.panteia.utils.io.mif.primitives.MifPline;
 
+import javax.sound.sampled.Port;
 import java.io.IOException;
 import java.util.*;
 
@@ -26,8 +27,12 @@ public class SeaNetwork {
     /** ArrayList for holding full set of sea connections **/
     ArrayList<SeaConnection> arrSeaConnections = new ArrayList<>();
 
+    /** Array for list of port countries we want to include in network **/
+    /** Network of sea connections may include more ports but we want to limit to ones that can be linked to inland **/
+    ArrayList<String> arrPortCountries = new ArrayList<>();
+
     /** Constructor with filenames**/
-    public SeaNetwork(String seaNetFileName, String portNodesFileName ){
+    public SeaNetwork(String seaNetFileName, String portNodesFileName, String[] portCountries ){
         System.out.println("## Sea Network Initialised from:" + seaNetFileName);
         System.out.println("## Port Data Initialised from:" + portNodesFileName);
         this.snetFileName = seaNetFileName ;
@@ -37,6 +42,14 @@ public class SeaNetwork {
         this.hmPortIDLookup.clear();
         this.hmPortSeqLookup.clear();
         this.arrSeaConnections.clear();
+        this.arrPortCountries.clear();
+
+        // Copy incoming array values into arraylist
+        // We use this as a filter for the ports which can connect to the hinterland
+        for(int i = 0; i < portCountries.length; i++){
+            this.arrPortCountries.add(portCountries[i]);
+        }
+
     }
 
     /** This opens and read the Polylines from the MID MIF files containing the maritime connections **/
@@ -161,5 +174,35 @@ public class SeaNetwork {
         System.out.println("Error: unable to find port node data for sequence number:" + portSeq );
         return pn ;
     }
+
+    /** Return a reference to the array list of sea connections **/
+    public ArrayList<SeaConnection> getListOfSeaConnections(){
+        return this.arrSeaConnections;
+    }
+
+    /** Return a reference to the hashset of ports found in network **/
+    public ArrayList<PortNode> getListOfPortsInNetwork(){
+        // Create the structure to return
+        ArrayList<PortNode> arrListOfPorts = new ArrayList<>();
+        // Iterating over hash set items
+        Iterator<String> hsit = this.hsPortsInSeaNetwork.iterator();
+        while (hsit.hasNext()) {
+            String portid = hsit.next();
+            PortNode pn = this.getPortNodeFromID(portid);
+            arrListOfPorts.add(pn);
+        }
+        return arrListOfPorts;
+    }
+
+    /** Return true if this port is one of the set with inland connections **/
+    Boolean doesPortConnectToHinterland(String portIDStr){
+        String portKey2 = portIDStr.substring(0,2);
+        if(this.arrPortCountries.contains(portKey2)){
+            return true;
+        } else{
+            return false;
+        }
+    }
+
 
 }

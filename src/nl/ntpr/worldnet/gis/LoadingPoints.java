@@ -8,6 +8,7 @@ import nl.panteia.utils.io.mif.primitives.MifPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 
 public class LoadingPoints {
     /** Path to MID/MIF loading point data **/
@@ -72,5 +73,27 @@ public class LoadingPoints {
             ex.printStackTrace();
         }
         System.out.println("Finished reading loading points: Found: " + this.arrLoadingNodes.size() + " points.");
+    }
+
+
+    /** Copy out ref to list of nodes **/
+    public ArrayList<LoadingNode> getListOfNodes(){
+        return this.arrLoadingNodes;
+    }
+
+
+    /** Get a loading node for a given country code **/
+    public LoadingNode getLoadingNodeFromComextCode(int comextCode){
+        Iterator<LoadingNode> lpit = this.arrLoadingNodes.iterator();
+        while (lpit.hasNext()) {
+            LoadingNode lnode = lpit.next();
+            if(lnode.ccode == comextCode){
+                return lnode;
+            }
+        }
+        // If it gets here it failed to find one
+        System.out.println("Error; failed to find loading node for country:" + comextCode);
+        System.exit(0);
+        return null;
     }
 }

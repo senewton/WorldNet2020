@@ -37,7 +37,7 @@ public class PortNode {
     }
 
     /** Print out contents **/
-    public void seePort(){
+    public void seePort() {
         System.out.printf("\n%d %s %s %s %s %d %f %f",
                 this.portSeq, this.portID, this.portNUTS3, this.portName, this.portType,
                 this.basgoedRegion, this.xCoord, this.yCoord);

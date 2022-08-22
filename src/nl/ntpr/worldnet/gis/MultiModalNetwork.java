@@ -1,28 +1,241 @@
 package nl.ntpr.worldnet.gis;
 
-import nl.nea.neac.worldnet.network.Path;
-import nl.nea.neac.worldnet.network.Node;
-import nl.nea.neac.worldnet.network.Link;
-import nl.nea.neac.worldnet.network.Network;
-import nl.nea.neac.worldnet.network.LinkModality ;
+import nl.nea.neac.worldnet.network.*;
+import nl.nea.neac.worldnet.network.algorithms.Dijkstra;
 import nl.nea.neac.worldnet.network.algorithms.PathEnumerator ;
 import nl.ntpr.worldnet.MultinomialLogit;
+import nl.panteia.utils.gis.GISUtil;
 
-import java.io.IOException;
-import java.util.Collections ;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class MultiModalNetwork {
 
+    /** Set of links for the multimodal network **/
+    HashSet<Link> mmNetworkLinks = new HashSet<>();
+
+    /** List of loading points which link the trading countries to the network **/
+    LoadingPoints loadPoints;
+
+    /** Sea network - made up of port to port connections, and the set of seaports **/
+    SeaNetwork seaNet;
+
+    /** Inland network - to connect the loading points to the ports **/
+    InlandNetwork inlNet;
+
+    /** WorldNet Style Network **/
+    Network mmWorldnetNetwork;
+
+    /** List of mm network paths **/
+    ArrayList<Path> mmPathList;
+
+    /** Worldnet Style Dijkstra Short Path Algorithm **/
+    Dijkstra mmDijkstra;
+
+    /** Constructor **/
     public MultiModalNetwork(){
-        test();
+        // test();
+        System.out.println("\n#MM: Setting up MultiModal Network:");
+        this.mmNetworkLinks.clear();
     }
 
-    private void test() {
+    /** Method for attaching a connection for this class to the set of loading points **/
+    public void AttachLoadingPoints(LoadingPoints lpts ){
+        System.out.println("#MM: Attaching Loading Points");
+        this.loadPoints = lpts;
+        ArrayList<LoadingNode> loadPts = this.loadPoints.getListOfNodes();
+        // for (LoadingNode ln : loadPts) {
+           // ln.seeLoadingNode();
+        // }
+    }
+
+    /** Method for attaching set network including ports to this class **/
+    public void AttachSeaNetwork(SeaNetwork snet ){
+        System.out.println("#MM: Attaching Sea Network");
+        this.seaNet = snet;
+        ArrayList<SeaConnection> sConns = this.seaNet.getListOfSeaConnections();
+        // for (SeaConnection sc : sConns) {
+           // sc.seeSeaConnection();
+        // }
+    }
+
+    /** Method for attaching inland network to this class **/
+    public void AttachInlandNetwork(InlandNetwork inet ){
+        System.out.println("#MM: Attaching Inland Network");
+        this.inlNet = inet;
+        ArrayList<InlandLink> iLinks = this.inlNet.getListOfInlandLinks();
+        // for (InlandLink inl : iLinks) {
+            // inl.seeInlandLink();
+        // }
+    }
+
+    /** Start building the network by adding sea and inland networks to combined 'mm' network **/
+    public void ConstructNetwork(){
+        this.mmNetworkLinks.clear();
+
+        // Sea connections
+        ArrayList<SeaConnection> sConns = this.seaNet.getListOfSeaConnections();
+        int seaID = 1000;
+        for (SeaConnection sc : sConns) {
+            seaID++;
+            Link sl_to = new Link(seaID, sc.distKM, sc.origWorldNetNode, sc.destWorldNetNode, LinkModality.SEA);
+            Link sl_fm = new Link(-1*seaID, sc.distKM, sc.destWorldNetNode, sc.origWorldNetNode, LinkModality.SEA);
+            this.mmNetworkLinks.add(sl_to);
+            this.mmNetworkLinks.add(sl_fm);
+        }
+
+        // Inland links
+        ArrayList<InlandLink> iLinks = this.inlNet.getListOfInlandLinks();
+        int inlID = 2000;
+        for (InlandLink ilnk : iLinks) {
+            inlID++;
+            Link il_to = new Link(inlID, ilnk.distKm, ilnk.NodeA.getWorldNetNode(), ilnk.NodeB.getWorldNetNode(),LinkModality.MIXED);
+            Link il_fm = new Link(-1*inlID, ilnk.distKm, ilnk.NodeB.getWorldNetNode(), ilnk.NodeA.getWorldNetNode(),LinkModality.MIXED);
+            this.mmNetworkLinks.add(il_to);
+            this.mmNetworkLinks.add(il_fm);
+        }
+    }
+
+    /** Add connecting links (representing seaports) joining sea connections to inland nets **/
+    public void JoinSeaToLand(){
+        // Run through list of active ports (the ones being used for the list of sea connections)
+        ArrayList<PortNode> activePorts = this.seaNet.getListOfPortsInNetwork();
+        Iterator<PortNode> pnit = activePorts.iterator();
+        int seaInlID = 3000;
+        while (pnit.hasNext()) {
+            // Each port
+            PortNode spNode = pnit.next();
+            // System.out.println("Seaport: " + spNode.portName + ";" + spNode.xCoord + ";" + spNode.yCoord);
+
+            if(this.seaNet.doesPortConnectToHinterland(spNode.portID)==true){
+                seaInlID++;
+
+                // Locate the nearest inland links
+                InlandNode inNode = this.inlNet.locateNearestNode(spNode.xCoord, spNode.yCoord);
+                double minMetres = GISUtil.getDistanceBetween(spNode.xCoord, spNode.yCoord, inNode.xCoord, inNode.yCoord);
+                // System.out.println("Connects to: " + inNode.nSeq + ";" + inNode.xCoord + ";" + inNode.yCoord);
+                // System.out.println("Dist Kms: " + minMetres/1000.0 );
+
+                // Make new links for these and add them to mm network
+                Link sll_to = new Link(seaInlID, minMetres/1000.0, spNode.getWorldNetNode(), inNode.getWorldNetNode());
+                Link sll_fm = new Link(-1*seaInlID, minMetres/1000.0, inNode.getWorldNetNode(), spNode.getWorldNetNode());
+                this.mmNetworkLinks.add(sll_to);
+                this.mmNetworkLinks.add(sll_fm);
+            } else{
+                // System.out.println("Not connected to inland network");
+            }
+        }
+    }
+
+    /** Add connecting links joining sea connections to inland nets **/
+    public void JoinLoadPtsToInland(){
+        // Run through list of loading points
+        ArrayList<LoadingNode> loadPoints = this.loadPoints.getListOfNodes();
+        Iterator<LoadingNode> lpit = loadPoints.iterator();
+        int lpInlID = 4000;
+        while (lpit.hasNext()) {
+            // Each loading point
+            LoadingNode lpNode = lpit.next();
+            // System.out.println("Loading Point: " + lpNode.lnName + ";" + lpNode.xCoord + ";" + lpNode.yCoord);
+
+            lpInlID++;
+
+            // Locate the nearest inland links
+            InlandNode inNode = this.inlNet.locateNearestNode(lpNode.xCoord, lpNode.yCoord);
+            double minMetres = GISUtil.getDistanceBetween(lpNode.xCoord, lpNode.yCoord, inNode.xCoord, inNode.yCoord);
+            // System.out.println("Connects to: " + inNode.nSeq + ";" + inNode.xCoord + ";" + inNode.yCoord);
+            // System.out.println("Dist Kms: " + minMetres/1000.0 );
+
+            // Make new links for these and add them to mm network
+            Link lil_to = new Link(lpInlID, minMetres/1000.0, lpNode.getWorldNetNode(), inNode.getWorldNetNode());
+            Link lil_fm = new Link(-1*lpInlID, minMetres/1000.0, inNode.getWorldNetNode(), lpNode.getWorldNetNode());
+            this.mmNetworkLinks.add(lil_to);
+            this.mmNetworkLinks.add(lil_fm);
+        }
+    }
+
+
+    /** Build the Worldnet style multimodal network out of links**/
+    public void CreateNetworkOutOfLinks(){
+        // Set up the Worldnet Style Network and construct the related data structures for holding the paths
+        this.mmWorldnetNetwork = new Network(this.mmNetworkLinks);
+        this.mmPathList = new ArrayList<>();
+        this.mmDijkstra = new Dijkstra(this.mmWorldnetNetwork);
+        System.out.println("#MM: Constructed Multimodal Network: " );
+        System.out.println("#MM: Total Links: " + this.mmWorldnetNetwork.numberOfLinks());
+        System.out.println("#MM: Total Nodes: " + this.mmWorldnetNetwork.numberOfNodes());
+    }
+
+    public void testNetwork(){
+        // Inland links
+        ArrayList<InlandLink> iLinks = this.inlNet.getListOfInlandLinks();
+        int inlID = 2000;
+        int rvlID = 20000;
+        for (InlandLink ilnk : iLinks) {
+            inlID++;
+            rvlID++;
+            Link il = new Link(inlID, ilnk.distKm, ilnk.NodeA.getWorldNetNode(), ilnk.NodeB.getWorldNetNode(),LinkModality.MIXED);
+            Link rv = new Link(rvlID, ilnk.distKm, ilnk.NodeB.getWorldNetNode(), ilnk.NodeA.getWorldNetNode(),LinkModality.MIXED);
+            this.mmNetworkLinks.add(il);
+            this.mmNetworkLinks.add(rv);
+        }
+
+        this.mmWorldnetNetwork = new Network(this.mmNetworkLinks);
+        // this.mmPathEnumerator = new PathEnumerator(this.mmWorldnetNetwork);
+        Dijkstra mmDijkstra = new Dijkstra(this.mmWorldnetNetwork);
+
+        Coord dc = new Coord(0.096, 49.479);
+        Coord oc = new Coord(17.0, 51.0);
+
+        //this.mmPathList = new ArrayList<Path>(this.mmPathEnumerator.calcPaths(
+        this.mmPathList = new ArrayList<Path>(mmDijkstra.calcPaths(
+                this.mmWorldnetNetwork.getClosestNode(oc),
+                this.mmWorldnetNetwork.getClosestNode(dc))
+        );
+        System.out.println("Size of path list:" + this.mmPathList.size());
+
+        // === Step 5: Use a multinomial logit function to assign probabilities to each path
+        Map<Path, Double> pathMap = MultinomialLogit.calculate(this.mmPathList, -1.0);
+        System.out.println("Calculated paths:" + pathMap.size());
+
+        // === Step 6: Sort on the probabilities
+        ArrayList<Path> keys = new ArrayList<Path>(pathMap.keySet());
+        Collections.sort(keys);
+
+        // See the results
+        for (Path path : keys) {
+            System.out.println(path.fullDescription());
+            System.out.println("\tProbability: " + pathMap.get(path) + "\n");
+            //List<Link> links = path.getLinks() ;
+        }
+    }
+
+    /** Test function for generating multimodal paths **/
+    /** Inputs are the Comext style country codes **/
+    public void FindRoutes(int repCountry, int parCountry){
+        LoadingNode repLoadingNode = this.loadPoints.getLoadingNodeFromComextCode(repCountry);
+        LoadingNode parLoadingNode = this.loadPoints.getLoadingNodeFromComextCode(parCountry);
+
+        this.mmPathList = new ArrayList<Path>(this.mmDijkstra.calcPaths(repLoadingNode.getWorldNetNode(), parLoadingNode.getWorldNetNode()));
+
+        // === Step 5: Use a multinomial logit function to assign probabilities to each path
+        Map<Path, Double> pathMap = MultinomialLogit.calculate(this.mmPathList, -1.0);
+        System.out.println("Calculated paths:" + pathMap.size());
+
+        // === Step 6: Sort on the probabilities
+        ArrayList<Path> keys = new ArrayList<Path>(pathMap.keySet());
+        Collections.sort(keys);
+
+        // See the results
+        for (Path path : keys) {
+            System.out.println(path.fullDescription());
+            System.out.println("\tProbability: " + pathMap.get(path) + "\n");
+            //List<Link> links = path.getLinks() ;
+        }
+    }
+
+
+    /* Shows how to build up a simple network */
+    public void test() {
         // === Step 1; Start with some nodes
         // Rotterdam
         double rtmLong = 4.48; // E

@@ -2,6 +2,7 @@ package nl.ntpr.worldnet.gis;
 
 import nl.nea.neac.worldnet.network.Coord;
 import nl.panteia.utils.exceptions.FileParseException;
+import nl.panteia.utils.gis.GISUtil;
 import nl.panteia.utils.io.csv.CSVReader;
 import nl.panteia.utils.io.mif.MapInfoInterchangeReader;
 import nl.panteia.utils.io.mif.primitives.MifPline;
@@ -10,24 +11,27 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
+
 
 public class InlandNetwork {
     /** Path+Filename for MID/MIF inland network data **/
     String inetFileName;
 
+
     /** ArrayList for holding full set of inland links **/
     ArrayList<InlandLink> arrInlandLinks = new ArrayList<>();
 
+
     /** Hashmap for holding master list of inland nodes, using string based on coordinates **/
     HashMap<String,InlandNode> hmInlandNodes = new HashMap<>();
+
 
     /** Constructor with filenames**/
     public InlandNetwork(String inlandNetFileName ){
         System.out.println("## Inland Network Initialised from:" + inlandNetFileName);
         this.inetFileName = inlandNetFileName ;
-
     }
+
 
     /** This opens and read the Polylines from the MID MIF files containing the inland network **/
     public void openInlandNetworkMidMifFile(){
@@ -133,6 +137,7 @@ public class InlandNetwork {
         return String.format("%d:%d", ix, iy);
     }
 
+
     /** Create and Store node if new in Hashmap **/
     private void storeNode(String keyStr, double xCoord, double yCoord){
         if(this.hmInlandNodes.containsKey(keyStr)){
@@ -144,6 +149,7 @@ public class InlandNetwork {
         }
     }
 
+
     /** List out all the nodes found in the network **/
     public void listNodesInNetwork(){
         // Iterating over hash set items
@@ -151,5 +157,36 @@ public class InlandNetwork {
         this.hmInlandNodes.forEach((k, v) -> System.out.println(v.nSeq + ";" + v.worldNetNode.getLongitude() + ";" + v.worldNetNode.getLatitude()));
 
         System.out.println("Found " + this.hmInlandNodes.size() + "Nodes in Network");
+    }
+
+
+    /** return a reference to the array list of inland transport links **/
+    ArrayList<InlandLink> getListOfInlandLinks(){
+        return this.arrInlandLinks;
+    }
+
+    /** Return Node closest to given coordinates **/
+    InlandNode locateNearestNode(double xCoord, double yCoord){
+        InlandNode nearestNode = new InlandNode();
+        double minDist = Double.MAX_VALUE;
+        Boolean bNodeFound = false;
+
+        for (InlandNode inode : this.hmInlandNodes.values()){
+            double metres = GISUtil.getDistanceBetween(xCoord, yCoord, inode.xCoord, inode.yCoord);
+            if(metres < minDist){
+                minDist = metres;
+                nearestNode = new InlandNode(inode); // Make a copy
+                bNodeFound = true;
+            }
+        }
+        if(bNodeFound == false){
+            System.out.println("Error: could not find an inland Node");
+            System.exit(0);
+        }
+        if((minDist/1000.0)>100.0){
+            System.out.println("Warning: Distance connecting sea to land network is high (km): " + (minDist/1000.0));
+        }
+
+        return nearestNode;
     }
 }

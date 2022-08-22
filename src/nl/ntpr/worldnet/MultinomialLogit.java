@@ -1,7 +1,5 @@
 /*
  * MultinomialLogit.java
- *
- * Created on 30 juni 2007, 13:54
  */
 
 package nl.ntpr.worldnet;
@@ -12,27 +10,21 @@ import java.util.Map;
 import nl.nea.neac.worldnet.network.Path;
 
 /**
- * MultinomialLogit attaches choice probabilities to ModeChains belonging to an 
- * origin destination pair.
+ * MultinomialLogit attaches choice probabilities to paths connecting a given origin destination pair.
  * @author sne
  */
 public final class MultinomialLogit
-{ 
-    /**
-     * Let noone instantiate this class.
-     */
-    private MultinomialLogit()
-    {
-        //do nothing
+{
+    // Do not allow anyone to instantiate this class.
+    private MultinomialLogit(){
+        // Do nothing
     }
 
     /**
-     * Calculate runs the MNL function, assigning probabilities to each element
-     * in the set.
-     * The multinomial logit is a simple way of mapping probabilities (a set of numbers between 0 and 1
-     * adding up to precisely 1) to the elements in the choice set, based on their
-     * relative cost.  The beta parameter is fixed here, but could be an
-     * estimated parameter.
+     * Calculate runs the MNL function, assigning probabilities to each element in the set.  The multinomial logit is a
+     * simple way of mapping probabilities (a set of numbers between 0 and 1 adding up to precisely 1) to the elements
+     * in the choice set, based on their relative cost.  The beta parameter is fixed here, but could be an estimated
+     * parameter.
      * @param paths a reference to a List of Paths.
      * @return Map containing the probability that a Path is chosen for each Path passed.
      */
@@ -50,24 +42,23 @@ public final class MultinomialLogit
             }
         }
 
-        /*if ( minImpedance < 100.0 ){
-            System.out.println("Min Imped =" + minImpedance );
-        }*/
-        
+        // if ( minImpedance < 100.0 ){
+        //    System.out.println("Min Impedance =" + minImpedance );
+        // }
+
         // Calculate the denominator
         for (Path value : paths) {
             double indexedImpedance = 100.0 * (value.getImpedance() / minImpedance);
             total += Math.exp(beta * indexedImpedance);
         }
+
         HashMap<Path, Double> result = new HashMap<Path, Double>(itemsInSet);
+
         // Set the probabilities into the main data structure
         for (Path path : paths) {
             double indexedImpedance = 100.0 * (path.getImpedance() / minImpedance);
             double probability = (Math.exp(beta * indexedImpedance)) / total;
             result.put(path, probability);
-            /* System.out.println( "i=" + i + " imp=" + 
-                    paths.GetTotalGeneralisedCost() +
-                    " prob=" + probability) ); */
         }
         return result;        
     }   

@@ -23,6 +23,21 @@ public class InlandNode {
         this.worldNetNode = new Node( x, y, nseq, "Anonymous" ) ;
     }
 
+    /** Copy Constructor **/
+    public InlandNode(InlandNode other) {
+        this.nSeq = other.nSeq;
+        this.xCoord = other.xCoord;
+        this.yCoord = other.yCoord;
+        this.worldNetNode = new Node(other.xCoord, other.yCoord, other.nSeq, other.getWorldNetNode().getName());
+    }
+
+    /** Empty Constructor **/
+    public InlandNode() {
+        this.nSeq = -1;
+        this.xCoord = 0.0;
+        this.yCoord = 0.0;
+    }
+
     /** Print out contents **/
     public void seeInlandNode(){
         System.out.printf("\n%d %f %f",this.nSeq, this.xCoord, this.yCoord);
